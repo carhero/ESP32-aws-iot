@@ -1,7 +1,7 @@
 # About This Project
 This Project is ESP32 porting version of AWS-IoT "shadow_console_echo" example.
 Some example folder and files are added to search network discovery and other applications.
-It does not incloud ESP-IDF but only having example project. So you need to setup ESP-IDF indivisually.
+It does not include ESP-IDF but only having example project. So you need to setup ESP-IDF indivisually.
 Have fun ^__^
 
 # Amazon Web Services IoT Thing Shadow Example
