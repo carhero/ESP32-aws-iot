@@ -1,3 +1,7 @@
+# About This Project
+This Project is ESP32 porting version of AWS-IoT "shadow_console_echo" example.
+Some example folder and files are added to search network discovery and other applications.
+
 # Amazon Web Services IoT Thing Shadow Example
 
 This is an adaptation of the [AWS IoT C SDK](https://github.com/aws/aws-iot-device-sdk-embedded-C) "shadow_sample" example for ESP-IDF.
