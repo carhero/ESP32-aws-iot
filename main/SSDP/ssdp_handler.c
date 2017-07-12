@@ -44,6 +44,9 @@
 
 static const char *TAG = "ssdp-parser";
 
+
+xSemaphoreHandle xSemaphore = NULL;
+
 // SSDP packet data structure
 typedef struct _device_descriptor_t
 {
@@ -116,12 +119,12 @@ void thread_PollingUpdate(void* ptr)
 
   while(1)
   {    
-    while( (sock < 0) || ssdp_skip_flag == 0) // If TCP socket is not ready, polling update should be not called
+    //while( (sock < 0) || ssdp_skip_flag == 0) // If TCP socket is not ready, polling update should be not called
+    if( (sock < 0) || ssdp_skip_flag == 0)
     {
-      ;
-    }    
-        
-    //printf("PollingUpdate loop %d\n", cnt++ );
+      continue;
+    }
+
     if(Thread_GetUpdateFlag())
     {
       JsonFlagUpdate = 0;
@@ -131,7 +134,7 @@ void thread_PollingUpdate(void* ptr)
       // if data sending is avilable, send tcp/ip command to MRX
       msg_parser_mqtt_data(JsonBuf, (size_t)strlen((char *)JsonBuf));
     }
-    
+
     /* escape routine is needed to close TCP socket     
     if(escape condition)
     {
@@ -142,8 +145,7 @@ void thread_PollingUpdate(void* ptr)
       break;
     }
     */
-
-    vTaskDelay(100 / portTICK_RATE_MS);
+    vTaskDelay(10 / portTICK_RATE_MS);
   }
   
   // return 0;
@@ -242,12 +244,13 @@ void thread_SSDPSender(void* ptr)
   ESP_LOGI(TAG, "thread_SSDPSender init...\n");
 
   while(1)
-  {    
+  {
+#if 0
     while(ssdp_skip_flag)  // If have tcp connection with MRX, then this flag is set to 1
-    {     
+    {
       ;
     }
-
+#endif
     // Send broadcast ping message
     ESP_LOGI(TAG, "send SSDP msg... \n");        
 
@@ -255,6 +258,11 @@ void thread_SSDPSender(void* ptr)
 
     vTaskDelay(2000 / portTICK_RATE_MS);
     //vTaskDelay(200);
+
+    if(ssdp_skip_flag)
+    {
+      break;
+    }
   }
 
   vTaskDelete(NULL);
@@ -272,17 +280,14 @@ void thread_SSDPReceiver(void* ptr)
   {
     int ret = 0;
     // If TCP connection is estbalished, then it should be skipped.
-    while(ssdp_skip_flag)  // If have tcp connection with MRX, then this flag is set to 1
-    {     
-      ;
-    }
-
+    //while(ssdp_skip_flag)  // If have tcp connection with MRX, then this flag is set to 1
     adr_sz = sizeof(from_adr);
   
     memset(&from_adr, 0, sizeof(from_adr));
+
     //ret = recvfrom(Usock, message, BUF_SIZE, 0,(struct sockaddr*)&from_adr, &adr_sz);
     ret = recvfrom(Usock, &st_packet, sizeof(st_packet), 0,(struct sockaddr*)&from_adr, &adr_sz);
-
+      
     if(ret > 0)
     {
       #if 1 // debug
@@ -300,19 +305,18 @@ void thread_SSDPReceiver(void* ptr)
         if(TCP_Connection(&from_adr) == 0)
         {
           ssdp_skip_flag = 1;
-          // break;
+          break;
         }
       }
 
       // Clear temp buffer data
       memset(message, 0, BUF_SIZE);
     }
-
     adr_sz = 0;
 
     //sleep(2);
     //vTaskDelay(200);
-    vTaskDelay(100 / portTICK_RATE_MS);
+    vTaskDelay(50 / portTICK_RATE_MS);
   }
   
   vTaskDelete(NULL);
@@ -322,13 +326,22 @@ void thread_SSDPReceiver(void* ptr)
 
 int Thread_Create(void)
 {    
+  // vSemaphoreCreateBinary( xSemaphore );
+
   // pthread_create( &th_PollUpdate, NULL, thread_PollingUpdate, NULL);
   // pthread_create( &th_SSDPSender, NULL, thread_SSDPSender, NULL);
   // pthread_create( &th_SSDPReceiver, NULL, thread_SSDPReceiver, NULL);
-  xTaskCreatePinnedToCore(&thread_PollingUpdate, "thread_PollingUpdate", 1024*2, NULL, 5, NULL, 1);
-  xTaskCreatePinnedToCore(&thread_SSDPSender, "thread_SSDPSender", 1024*3, NULL, 5, NULL, 1);
-  xTaskCreatePinnedToCore(&thread_SSDPReceiver, "thread_SSDPReceiver", 1024*3, NULL, 5, NULL, 1);
-  
+  // xTaskCreate(&thread_PollingUpdate, "PollingUpdate", 1024*4, NULL, 5, NULL);
+
+  // -3, -2, -1, 0, 1, 2, 3
+
+  xTaskCreate(thread_SSDPSender, "SSDPSender", 1024*3, NULL, -3, NULL);
+  xTaskCreate(thread_SSDPReceiver, "SSDPReceiver", 1024*3, NULL, 3, NULL);
+  xTaskCreate(thread_PollingUpdate, "PollingUpdate", 1024*3, NULL, 0, NULL);
+
+  // xTaskCreatePinnedToCore(thread_SSDPSender, "SSDPSender", 1024*3, NULL, 5, NULL, 1);
+  // xTaskCreatePinnedToCore(thread_SSDPReceiver, "SSDPReceiver", 1024*3, NULL, 5, NULL, 1);
+  // xTaskCreatePinnedToCore(thread_PollingUpdate, "PollingUpdate", 1024*3, NULL, 5, NULL, 1);
   // synchronize threads:
   //pthread_join(th_PollUpdate, NULL);                // pauses until first finishes
   //pthread_join(th_NetServer, NULL);               // pauses until second finishes
