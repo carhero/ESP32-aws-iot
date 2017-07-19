@@ -1,11 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-// #include "socket.h"
-
-// #include <unistd.h>
-// #include <arpa/inet.h>
 #include <sys/socket.h>
 #include "msg_parser.h"
 
@@ -13,11 +8,16 @@ extern int sock;
 
 typedef enum {
 
+    /* For Controlling MRX-x20 */
     eCOMMAND_POWER  = 0,
     eCOMMAND_VOLUME,
     eCOMMAND_FUNCTION,
     eCOMMAND_VOLUME_LEVEL,
     eCOMMAND_TUNER,
+
+    /* For Controlling ESP32 */
+    eCOMMAND_LED_CTRL,
+    eCOMMAND_GAS_CTRL,
 
     eCOMMAND_MAX,
 
@@ -32,7 +32,7 @@ typedef enum {
 
 } FM_INDDX;
 
-int command_index = 0;
+eCOMMAND_INDEX command_index = 0;
 
 static void SystemCtrl_Power(char* data)
 {
@@ -67,7 +67,8 @@ static void SystemCtrl_Volume(char* data)
         memset(sendBuf, 0, sizeof(sendBuf));
         desiredVolLev = (unsigned char)((VolData >> 8) & 0x000FF);
     }
-    else{
+    else
+    {
         desiredVolLev = 2;  // temporary volume step
     }
 
@@ -118,31 +119,6 @@ static void SystemCtrl_Function(char* data)
 
     sprintf(sendMsg, "Z1INP%d;", indexoffunc);
     write(sock, sendMsg, strlen(sendMsg));
-
-#if 0
-    switch(indexoffunc)
-    {
-        case 0:
-        case 1:
-        case 2:
-        case 3:
-        case 4:
-            //indexoffunc = data[0]-'0';
-            sprintf(sendMsg, "Z1INP%d;", indexoffunc);
-            write(sock, sendMsg, strlen(sendMsg));
-            break;
-#if 0   // TBD       
-        case 8:
-            //write(sock, "Z1VUP02;", strlen("Z1VUP02;"));
-            break;
-        case 9:
-            //write(sock, "Z1MUT1;", strlen("Z1MUT1;"));
-            break;
-#endif        
-        default:
-            break;
-    }
-#endif
 }
 
 static void SystemCtrl_SetVolLevel(char* data)
@@ -154,11 +130,11 @@ static void SystemCtrl_SetVolLevel(char* data)
     printf("atoi(data):%d\n",volume);
 
     // Z1VOL-35, Z1VOL+10
-    if(volume <= 90)
+    if(volume <= 90) 
     {
         sprintf(sendBuf, "Z1VOL-%d;", 90-volume);
-    }
-    else
+    } 
+    else 
     {
         sprintf(sendBuf, "Z1VOL+%d;", volume-90);
     }
@@ -191,11 +167,72 @@ static void SystemCtrl_Tuner(char* data)
         return;
     }
     
-    memset(sendBuf, 0, sizeof(sendBuf));    
+    memset(sendBuf, 0, sizeof(sendBuf));
 
     sprintf(sendBuf, "%s;",comBuf[state]);
 
     write(sock, sendBuf, strlen(sendBuf));
+}
+
+static void SystemCtrl_esp32_ledctrl(char* data)
+{   
+    //ESP32 gpio control is needed to control LED(Off, On, Blink)
+    unsigned int value = atoi(data);    
+    
+    // 0x00~0x02 : BLUE LED
+    // 0x10~0x12 : RED LED
+    // 0x*0~0x*2 : *** LED (TBD)
+
+    /* 0:LED OFF, 1:LED ON, 2:LED BLINK */
+
+
+}
+
+static void SystemCtrl_esp32_gasctrl(char* data)
+{   
+    //ESP32 servo moter control is needed (lock gas valve / unlock gas valve)
+
+}
+
+static eCOMMAND_INDEX msg_parser_command_data(char *msg)
+{
+    eCOMMAND_INDEX ret = eCOMMAND_MAX;
+    
+    // if new command type is appered
+    if(strstr(msg, "command") != NULL)
+    {
+        if(strstr(msg, "power") != NULL) 
+        {
+            ret = eCOMMAND_POWER;
+        } 
+        else if(strstr(msg, "vol_level") != NULL) 
+        {
+            ret = eCOMMAND_VOLUME_LEVEL;
+        }
+        else if(strstr(msg, "volume") != NULL) 
+        {
+            ret = eCOMMAND_VOLUME;
+        }
+        else if(strstr(msg, "function") != NULL) 
+        {
+            ret = eCOMMAND_FUNCTION;
+        }
+        else if(strstr(msg, "tuner") != NULL) 
+        {
+            ret = eCOMMAND_TUNER;
+        }
+        /* For Controlling ESP32 */
+        else if(strstr(msg, "ledcontrol") != NULL) 
+        {
+            ret = eCOMMAND_LED_CTRL;
+        }
+        else if(strstr(msg, "gasvalve") != NULL) 
+        {
+            ret = eCOMMAND_GAS_CTRL;
+        }
+    }
+
+    return ret;
 }
 
 void msg_parser_mqtt_data(unsigned char* str, unsigned int length)
@@ -203,60 +240,39 @@ void msg_parser_mqtt_data(unsigned char* str, unsigned int length)
     char *strptr = NULL;
     int cnt = 0;
 
-    char * msg = (char *)str;
-
+    char *msg = (char *)str;
+    
     // if new command type is appered
-    if(strstr(msg, "command") != NULL)
-    {
-        if(strstr(msg, "power") != NULL)
-        {
-            command_index = eCOMMAND_POWER;
-        }                
-        else if(strstr(msg, "vol_level") != NULL)
-        {
-            command_index = eCOMMAND_VOLUME_LEVEL;
-        }
-        else if(strstr(msg, "volume") != NULL)
-        {
-            command_index = eCOMMAND_VOLUME;
-        }
-        else if(strstr(msg, "function") != NULL)
-        {
-            command_index = eCOMMAND_FUNCTION;
-        }
-        else if(strstr(msg, "tuner") != NULL)
-        {
-            command_index = eCOMMAND_TUNER;
-        }
-    }
+    command_index = msg_parser_command_data(msg);
 
     strptr = strstr(msg, "value");
     printf("strptr : %s, command_index:%d\n",strptr, command_index);
 
-    if(strptr == NULL)
+    if(strptr == NULL) 
     {
+        printf("str is NULL\n");
         return;
     }
-    else{
-        
-        strptr += 7;        
+    
+    strptr += 7;
 
-        for(cnt = 0; cnt < 20; cnt += 1)
+    for(cnt = 0; cnt < 20; cnt += 1) 
+    {
+        if(strptr[0] >= '0' && strptr[0] <= '9') 
         {
-            if(strptr[0] >= '0' && strptr[0] <= '9')
-            {
-                break;
-            }
-            else{
-                strptr += 1;                
-            }
+            break;
+        }
+        else 
+        {
+            strptr += 1;                
         }
     }
     
-    printf("strptr+%d : %s\n",cnt, strptr);
-    
+    printf("strptr+%d : %s\n",cnt, strptr);        
+
     switch(command_index)
     {
+        /* For contorlling MRX-x20 */
         case eCOMMAND_POWER:
         {
             SystemCtrl_Power(strptr);
@@ -281,9 +297,19 @@ void msg_parser_mqtt_data(unsigned char* str, unsigned int length)
         {
             SystemCtrl_Tuner(strptr);
             break;
-        }        
-        default:    
-            break;            
+        }
+        /* For contorlling ESP32 */
+        case eCOMMAND_LED_CTRL:
+        {
+            SystemCtrl_esp32_ledctrl(strptr);
+            break;
+        }
+        case eCOMMAND_GAS_CTRL:
+        {
+            SystemCtrl_esp32_gasctrl(strptr);
+            break;
+        }
+        default:    break;
     }
 }
 
