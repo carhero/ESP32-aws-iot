@@ -1,5 +1,16 @@
 {
     "files.associations": {
-        "cs495314.c": "cpp"
+        "cs495314.c": "cpp",
+        "led_ctrl.c": "cpp",
+        "led_ctrl.h": "c",
+        "task.h": "c",
+        "stdio.h": "c",
+        "ssdp_handler.c": "cpp",
+        "dir.c": "cpp",
+        "adc.c": "cpp",
+        "spi.c": "cpp",
+        "uart.c": "cpp",
+        "servo.c": "cpp",
+        "thing_shadow_sample.c": "cpp"
     }
 }

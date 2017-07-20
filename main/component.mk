@@ -24,24 +24,20 @@ endif
 
 # Add additional inclouds
 COMPONENT_PRIV_INCLUDEDIRS := .
-COMPONENT_ADD_INCLUDEDIRS := bt							# BT folder
 COMPONENT_ADD_INCLUDEDIRS += dir						# DIR folder
 COMPONENT_ADD_INCLUDEDIRS += dsp						# DSP folder
 COMPONENT_ADD_INCLUDEDIRS += led						# led
-COMPONENT_ADD_INCLUDEDIRS += test						# TEST folder
-COMPONENT_ADD_INCLUDEDIRS += usb						# USB folder
 COMPONENT_ADD_INCLUDEDIRS += mcu/adc mcu/spi mcu/uart	# MCU folder
 COMPONENT_ADD_INCLUDEDIRS += msg_parser					# Message parser
+COMPONENT_ADD_INCLUDEDIRS += servo						# servo moter control
 COMPONENT_ADD_INCLUDEDIRS += SSDP						# SSDP
 
 # Test option (yhcha testing)
 COMPONENT_SRCDIRS := .
-COMPONENT_SRCDIRS += bt									# BT folder
 COMPONENT_SRCDIRS += dir								# DIR folder
 COMPONENT_SRCDIRS += dsp								# DSP folder
 COMPONENT_SRCDIRS += led								# led folder
-COMPONENT_SRCDIRS += test								# TEST folder
-COMPONENT_SRCDIRS += usb								# USB folder
 COMPONENT_SRCDIRS += mcu/adc mcu/spi mcu/uart			# MCU folder
 COMPONENT_SRCDIRS += msg_parser							# Message parser
+COMPONENT_SRCDIRS += servo								# servo moter control
 COMPONENT_SRCDIRS += SSDP								# SSDP

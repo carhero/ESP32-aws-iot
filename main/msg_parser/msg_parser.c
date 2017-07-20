@@ -4,6 +4,8 @@
 #include <sys/socket.h>
 #include "msg_parser.h"
 
+#include "led_ctrl.h"
+
 extern int sock;
 
 typedef enum {
@@ -184,8 +186,30 @@ static void SystemCtrl_esp32_ledctrl(char* data)
     // 0x*0~0x*2 : *** LED (TBD)
 
     /* 0:LED OFF, 1:LED ON, 2:LED BLINK */
+    switch(value)
+    {        
+        // Blue LED On/Off
+        case 0x00: case 0x01:   
+            led_ctrl_blue_led(value);
+            break;
 
+        // Blue LED blink
+        case 0x02:
+            led_ctrl_blue_blink(value);
+            break;
+        
+        // Red LED On/Off
+        case 0x10: case 0x11:
+            led_ctrl_red_led(value);
+            break;
 
+        // Blue LED blink
+        case 0x12:
+            led_ctrl_red_blink(value);
+            break;
+        
+        default:    break;
+    }
 }
 
 static void SystemCtrl_esp32_gasctrl(char* data)

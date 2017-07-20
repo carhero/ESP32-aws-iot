@@ -2,20 +2,8 @@
  * crate_thread.c
  *
  *  Created on: Jun 07, 2017
- *      Author: yhcha
+ *  Author: yhcha
  */
-
-// #include <stdio.h>
-// #include <string.h>
-// #include <stdlib.h>
-// #include <unistd.h>
-// #include "pthread.h"
-
-// network define
-// #include <arpa/inet.h>
-// #include <netdb.h>
-// #include <net/if.h>
-// #include <dlfcn.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -38,7 +26,8 @@
 #include "msg_parser.h"
 #include "ssdp_handler.h"
 
-// #include "_pthreadtypes.h"
+#include "led_ctrl.h"
+
 
 #define BUF_SIZE  1024
 
@@ -76,11 +65,6 @@ unsigned int JsonStrLen;
 unsigned char JsonBuf[1024];
 unsigned int JsonFlagUpdate;
 
-// linux thread variable
-// pthread_t th_PollUpdate;    // polling update thread
-// pthread_t th_SSDPSender;    // network SSDP serch msg sending thread
-// pthread_t th_SSDPReceiver;  // network SSDP serch msg receiver thread
-
 // Socket variable
 char message[BUF_SIZE];
 int ssdp_skip_flag = 0;
@@ -113,16 +97,14 @@ void CopyJsonBuffer(const char *pBuf, unsigned int Length)
 // ------------------------------------------------
 void thread_PollingUpdate(void* ptr)
 {
-  // unsigned int BufCnt = 0;
-  // unsigned int cnt = 0;
   ESP_LOGI(TAG, "thread_PollingUpdate init...\n");
 
   while(1)
   {    
-    //while( (sock < 0) || ssdp_skip_flag == 0) // If TCP socket is not ready, polling update should be not called
+    //while( (sock < 0) || ssdp_skip_flag == 0) // If TCP socket is not ready, polling update should be not called    
     if( (sock < 0) || ssdp_skip_flag == 0)
     {
-      continue;
+      continue;   // To avoid CPU idle warning    
     }
 
     if(Thread_GetUpdateFlag())
@@ -147,8 +129,7 @@ void thread_PollingUpdate(void* ptr)
     */
     vTaskDelay(10 / portTICK_RATE_MS);
   }
-  
-  // return 0;
+
 }
 
 
@@ -158,12 +139,8 @@ void thread_PollingUpdate(void* ptr)
 #define BUF_SIZE 1024
 void error_handling(char *message);
 
-//int main(int argc, char *argv[])
 int TCP_Connection(struct sockaddr_in *from_addr)
 {
-	// int sock;
-	// char message[BUF_SIZE];
-	// int str_len;
 	struct sockaddr_in serv_adr;
 
   char *TDP_PORT = "14999";
@@ -185,9 +162,9 @@ int TCP_Connection(struct sockaddr_in *from_addr)
   {
     ESP_LOGI(TAG, "Connected...........");
     ESP_LOGI(TAG, "TCP Server IP : %X\n",serv_adr.sin_addr.s_addr);
-    // xTaskCreatePinnedToCore(&thread_PollingUpdate, "thread_PollingUpdate", 1024*2, NULL, 1, NULL, 1);
   }
-		
+
+  ssdp_skip_flag = 1;
 	//close(sock);
 	return 0;
 }
@@ -235,29 +212,20 @@ static int MSearchMessageDataSend(void)
   sendto(Usock, (unsigned char*)&st_packet, sizeof(st_packet), 0, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
 
   return 0;
-  //ssdp_skip_flag = 0;
 }
 
 void thread_SSDPSender(void* ptr)
 {
-  //unsigned int cnt = 0;
   ESP_LOGI(TAG, "thread_SSDPSender init...\n");
 
   while(1)
   {
-#if 0
-    while(ssdp_skip_flag)  // If have tcp connection with MRX, then this flag is set to 1
-    {
-      ;
-    }
-#endif
     // Send broadcast ping message
     ESP_LOGI(TAG, "send SSDP msg... \n");        
 
     MSearchMessageDataSend();
 
     vTaskDelay(2000 / portTICK_RATE_MS);
-    //vTaskDelay(200);
 
     if(ssdp_skip_flag)
     {
@@ -266,26 +234,21 @@ void thread_SSDPSender(void* ptr)
   }
 
   vTaskDelete(NULL);
-  // return;
 }
 
 void thread_SSDPReceiver(void* ptr)
 {
-  // unsigned int cnt = 0;  
-  // int count1;
-
   ESP_LOGI(TAG, "thread_SSDPReceiver init...\n");
 
   while(1)
   {
     int ret = 0;
+
     // If TCP connection is estbalished, then it should be skipped.
-    //while(ssdp_skip_flag)  // If have tcp connection with MRX, then this flag is set to 1
     adr_sz = sizeof(from_adr);
   
     memset(&from_adr, 0, sizeof(from_adr));
 
-    //ret = recvfrom(Usock, message, BUF_SIZE, 0,(struct sockaddr*)&from_adr, &adr_sz);
     ret = recvfrom(Usock, &st_packet, sizeof(st_packet), 0,(struct sockaddr*)&from_adr, &adr_sz);
       
     if(ret > 0)
@@ -312,40 +275,23 @@ void thread_SSDPReceiver(void* ptr)
       // Clear temp buffer data
       memset(message, 0, BUF_SIZE);
     }
-    adr_sz = 0;
 
-    //sleep(2);
-    //vTaskDelay(200);
+    adr_sz = 0;
     vTaskDelay(50 / portTICK_RATE_MS);
   }
   
   vTaskDelete(NULL);
-  // return 0;
 }
 
 
 int Thread_Create(void)
-{    
-  // vSemaphoreCreateBinary( xSemaphore );
+{
+  xTaskCreate(thread_SSDPSender, "SSDPSender", 1024*3, NULL, -1, NULL);
+  xTaskCreate(thread_SSDPReceiver, "SSDPReceiver", 1024*3, NULL, 0, NULL);
+  xTaskCreate(thread_PollingUpdate, "PollingUpdate", 1024*3, NULL, 1, NULL);
+  //xTaskCreate(led_ctrl_task_blink, "LED Blink Task", 1024*2, NULL, 1, NULL);
+  led_ctrl_gpio_init();
 
-  // pthread_create( &th_PollUpdate, NULL, thread_PollingUpdate, NULL);
-  // pthread_create( &th_SSDPSender, NULL, thread_SSDPSender, NULL);
-  // pthread_create( &th_SSDPReceiver, NULL, thread_SSDPReceiver, NULL);
-  // xTaskCreate(&thread_PollingUpdate, "PollingUpdate", 1024*4, NULL, 5, NULL);
-
-  // -3, -2, -1, 0, 1, 2, 3
-
-  xTaskCreate(thread_SSDPSender, "SSDPSender", 1024*3, NULL, -3, NULL);
-  xTaskCreate(thread_SSDPReceiver, "SSDPReceiver", 1024*3, NULL, 3, NULL);
-  xTaskCreate(thread_PollingUpdate, "PollingUpdate", 1024*3, NULL, 0, NULL);
-
-  // xTaskCreatePinnedToCore(thread_SSDPSender, "SSDPSender", 1024*3, NULL, 5, NULL, 1);
-  // xTaskCreatePinnedToCore(thread_SSDPReceiver, "SSDPReceiver", 1024*3, NULL, 5, NULL, 1);
-  // xTaskCreatePinnedToCore(thread_PollingUpdate, "PollingUpdate", 1024*3, NULL, 5, NULL, 1);
-  // synchronize threads:
-  //pthread_join(th_PollUpdate, NULL);                // pauses until first finishes
-  //pthread_join(th_NetServer, NULL);               // pauses until second finishes
-  
   ESP_LOGI(TAG, "Create thread completed.\n");
 
   return 0;
