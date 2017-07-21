@@ -5,6 +5,7 @@
 #include "msg_parser.h"
 
 #include "led_ctrl.h"
+#include "servo.h"
 
 extern int sock;
 
@@ -215,7 +216,7 @@ static void SystemCtrl_esp32_ledctrl(char* data)
 static void SystemCtrl_esp32_gasctrl(char* data)
 {   
     //ESP32 servo moter control is needed (lock gas valve / unlock gas valve)
-
+    servo_app_main();
 }
 
 static eCOMMAND_INDEX msg_parser_command_data(char *msg)
